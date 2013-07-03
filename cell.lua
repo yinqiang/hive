@@ -1,10 +1,12 @@
 local c = require "cell.c"
+local csocket = require "cell.c.socket"
 local coroutine = coroutine
 local assert = assert
 local select = select
 local table = table
 local next = next
 local pairs = pairs
+local type = type
 
 local session = 0
 local port = {}
@@ -83,7 +85,11 @@ cell.rawsend = c.send
 
 function cell.dispatch(p)
 	local id = assert(p.id)
-	assert(port[id] == nil)
+	if p.replace then
+		assert(port[id])
+	else
+		assert(port[id] == nil)
+	end
 	port[id] = p
 end
 
@@ -152,13 +158,172 @@ end
 
 function cell.main() end
 
+------------ sockets api ---------------
+local sockets = {}
+local sockets_event = {}
+local sockets_arg = {}
+local sockets_closed = {}
+local sockets_fd = nil
+local sockets_accept = {}
+
+local socket = {}
+local listen_socket = {}
+
+local function close_msg(self)
+	cell.send(sockets_fd, "disconnect", self.__fd)
+end
+
+local socket_meta = {
+	__index = socket,
+	__gc = close_msg,
+}
+
+local listen_meta = {
+	__index = listen_socket,
+	__gc = close_msg,
+}
+
+
+--todo:
+function listen_socket:disconnect()
+	sockets_accept[self.__fd] = nil
+	socket.disconnect(self)
+end
+
+function cell.connect(addr, port)
+	sockets_fd = sockets_fd or cell.cmd("socket")
+	local obj = { __fd = assert(cell.call(sockets_fd, "connect", self, addr, port), "Connect failed") }
+	return setmetatable(obj, socket_meta)
+end
+
+function cell.listen(port, accepter)
+	assert(type(accepter) == "function")
+	sockets_fd = sockets_fd or cell.cmd("socket")
+	local obj = { __fd = assert(cell.call(sockets_fd, "listen", self, port), "Listen failed") }
+	sockets_accept[obj.__fd] = accepter
+	return setmetatable(obj, listen_meta)
+end
+
+function cell.bind(fd)
+	sockets_fd = sockets_fd or cell.cmd("socket")
+	local obj = { __fd = fd }
+	return setmetatable(obj, socket_meta)
+end
+
+function socket:disconnect()
+	assert(sockets_fd)
+	local fd = self.__fd
+	sockets[fd] = nil
+	sockets_closed[fd] = true
+	if sockets_event[fd] then
+		cell.wakeup(sockets_event[fd])
+	end
+	cell.send(sockets_fd, "disconnect", fd)
+end
+
+function socket:write(msg)
+	local fd = self.__fd
+	cell.rawsend(sockets_fd, 6, fd, csocket.sendpack(msg))
+end
+
+local function socket_wait(fd, sep)
+	assert(sockets_event[fd] == nil)
+	sockets_event[fd] = cell.event()
+	sockets_arg[fd] = sep
+	cell.wait(sockets_event[fd])
+end
+
+function socket:readbytes(bytes)
+	local fd = self.__fd
+	if sockets_closed[fd] then
+		sockets[fd] = nil
+		return
+	end
+	if sockets[fd] then
+		local data = csocket.pop(sockets[fd], bytes)
+		if data then
+			return data
+		end
+	end
+	socket_wait(fd, bytes)
+	if sockets_closed[fd] then
+		sockets[fd] = nil
+		return
+	end
+	return csocket.pop(sockets[fd], bytes)
+end
+
+function socket:readline(sep)
+	local fd = self.__fd
+	if sockets_closed[fd] then
+		sockets[fd] = nil
+		return
+	end
+	sep = sep or "\n"
+	if sockets[fd] then
+		local line = csocket.readline(sockets[fd], sep)
+		if line then
+			return line
+		end
+	end
+	socket_wait(fd, sep)
+	if sockets_closed[fd] then
+		sockets[fd] = nil
+		return
+	end
+	return csocket.readline(sockets[fd], sep)
+end
+
+----------------------------------------
+
+cell.dispatch {
+	id = 6, -- socket
+	dispatch = function(fd, sz, msg)
+		local accepter = sockets_accept[fd]
+		if accepter then
+			-- accepter: new fd (sz) ,  ip addr (msg)
+			local co = coroutine.create(function()
+				local forward = accepter(sz,msg) or self
+				cell.call(sockets_fd, "forward", sz , forward)
+				return "EXIT"
+			end)
+			suspend(nil, nil, co, coroutine.resume(co))
+			return
+		end
+		local ev = sockets_event[fd]
+		sockets_event[fd] = nil
+		if sz == 0 then
+			sockets_closed[fd] = true
+			if ev then
+				cell.wakeup(ev)
+			end
+		else
+			local buffer, bsz = csocket.push(sockets[fd], msg, sz)
+			sockets[fd] = buffer
+			if ev then
+				local arg = sockets_arg[fd]
+				if type(arg) == "string" then
+					local line = csocket.readline(buffer, arg, true)
+					if line then
+						cell.wakeup(ev)
+					end
+				else
+					if bsz >= arg then
+						cell.wakeup(ev)
+					end
+				end
+			end
+		end
+	end
+}
+
 cell.dispatch {
 	id = 5, -- exit
 	dispatch = function()
-		local err = tostring(cell.self) .. " is dead"
+		local err = tostring(self) .. " is dead"
 		for event,session in pairs(task_session) do
 			local source = task_source[event]
-			if source ~= cell.self then
+			if source ~= self then
 				c.send(source, 1, session, false, err)
 			end
 		end
@@ -168,10 +333,9 @@ cell.dispatch {
 cell.dispatch {
 	id = 4, -- launch
 	dispatch = function(source, session, report, ...)
-		local args = { ... }
 		local op = report and "RETURN" or "EXIT"
-		local co = coroutine.create(function() return op, cell.main(table.unpack(args)) end)
-		suspend(source, session, co, coroutine.resume(co))
+		local co = coroutine.create(function(...) return op, cell.main(...) end)
+		suspend(source, session, co, coroutine.resume(co,...))
 	end
 }
 
@@ -183,15 +347,8 @@ cell.dispatch {
 			print("Unknown message ", cmd)
 		else
 			local n = select("#", ...)
-			local co
-			if n < 5 then
-				local p1,p2,p3,p4 = ...
-				co = coroutine.create(function() return "EXIT", f(p1,p2,p3,p4) end)
-			else
-				local args = { ... }
-				co = coroutine.create(function() return "EXIT", f(table.unpack(args)) end)
-			end
-			suspend(source, session, co, coroutine.resume(co))
+			local co = coroutine.create(function(...) return "EXIT", f(...) end)
+			suspend(source, session, co, coroutine.resume(co,...))
 		end
 	end
 }
@@ -204,15 +361,8 @@ cell.dispatch {
 			c.send(source, 1, session, false, "Unknown command " ..  cmd)
 		else
 			local n = select("#", ...)
-			local co
-			if n < 5 then
-				local p1,p2,p3,p4 = ...
-				co = coroutine.create(function() return "RETURN", f(p1,p2,p3,p4) end)
-			else
-				local args = { ... }
-				co = coroutine.create(function() return "RETURN", f(table.unpack(args)) end)
-			end
-			suspend(source, session, co, coroutine.resume(co))
+			local co = coroutine.create(function(...) return "RETURN", f(...) end)
+			suspend(source, session, co, coroutine.resume(co, ...))
 		end
 	end
 }
