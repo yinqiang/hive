@@ -80,7 +80,8 @@ lexit(lua_State *L) {
 	if (pool->s) {
 		for (i=0;i<pool->cap;i++) {
 			if (pool->s[i]->status != STATUS_INVALID && pool->s[i]->fd >=0) {
-				closesocket(pool->s[i]->fd);
+				// closesocket(pool->s[i]->fd);
+				close(pool->s[i]->fd);
 			}
 			free(pool->s[i]);
 		}
@@ -148,7 +149,8 @@ new_socket(struct socket_pool *p, int sock) {
 		}
 	}
 _error:
-	closesocket(sock);
+	// closesocket(sock);
+	close(sock);
 	return -1;
 }
 
@@ -210,7 +212,8 @@ force_close(struct socket *s, struct socket_pool *p) {
 	s->head = s->tail = NULL;
 	s->status = STATUS_INVALID;
 	sp_del(p->fd, s->fd);
-	closesocket(s->fd);
+	// closesocket(s->fd);
+	close(s->fd);
 	--p->count;
 }
 

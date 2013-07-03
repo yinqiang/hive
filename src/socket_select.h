@@ -5,10 +5,16 @@
 #include <assert.h>
 #include <sys/time.h>
 
-#define _WIN32_WINNT 0x0501
+// #define _WIN32_WINNT 0x0501
 
-#include <winsock2.h>
-#include <ws2tcpip.h>
+// #include <winsock2.h>
+// #include <ws2tcpip.h>
+#include <netdb.h>
+#include <unistd.h>
+#include <sys/select.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <fcntl.h>
 
 #define DEFAULT_CAP 16
 
@@ -46,8 +52,8 @@ sp_create() {
 	sp->select_n = 0;
 	sp->socket_n = 0;
 
-	WSADATA wsaData;
-	WSAStartup(MAKEWORD(2,2), &wsaData);
+	// WSADATA wsaData;
+	// WSAStartup(MAKEWORD(2,2), &wsaData);
 
 	return sp;
 }
@@ -168,7 +174,7 @@ sp_wait(struct select_pool *sp, struct event *e, int n, int timeout) {
 static void
 sp_nonblocking(int sock) {
 	unsigned long flag=1; 
-	ioctlsocket(sock,FIONBIO,&flag);
+	fcntl(sock,FIONBIO,&flag);
 }
 
 #endif

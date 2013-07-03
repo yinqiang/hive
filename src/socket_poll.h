@@ -4,7 +4,7 @@
 #include <stdbool.h>
 #include <unistd.h>
 
-#if defined(_WIN32) || defined(_WIN64)
+#if defined(_WIN32) || defined(_WIN64) || defined(__CYGWIN__)
 #define USE_SELECT 1
 #else
 
@@ -39,13 +39,11 @@ static void sp_nonblocking(int sock);
 
 #ifdef __linux__
 #include "socket_epoll.h"
-#endif
 
-#if defined(__APPLE__) || defined(__FreeBSD__) || defined(__OpenBSD__) || defined (__NetBSD__)
+#elif defined(__APPLE__) || defined(__FreeBSD__) || defined(__OpenBSD__) || defined (__NetBSD__)
 #include "socket_kqueue.h"
-#endif
 
-#if defined(_WIN32) || defined(_WIN64)
+#elif defined(_WIN32) || defined(_WIN64) || defined(__CYGWIN__)
 #include "socket_select.h"
 #endif
 
