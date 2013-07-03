@@ -10,7 +10,7 @@ src/hive_system_lib.c \
 src/hive_socket_lib.c
 
 all :
-	echo 'make win or make posix or make macosx'
+	@echo 'make win or make posix or make macosx'
 
 win : hive.dll
 posix : hive.so
