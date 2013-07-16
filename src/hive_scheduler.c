@@ -8,7 +8,11 @@
 
 #include <stdint.h>
 #include <stdio.h>
+#ifdef _WIN32
+#include <windows.h>
+#else
 #include <pthread.h>
+#endif
 #include <unistd.h>
 #include <stdbool.h>
 #include <string.h>
@@ -165,6 +169,20 @@ _worker(void *p) {
 static void
 _start(struct global_queue *gmq, struct timer *t) {
 	int thread = gmq->thread;
+#if defined(_WIN32)
+	HANDLE pid[thread+1];
+	int i =0;
+	pid[0]=CreateThread(NULL, 0, _timer, t, 0, NULL);
+	
+
+	for (i=1;i<=thread;i++) {
+		pid[i]=CreateThread(NULL, 0, _worker, gmq, 0, NULL);
+	}
+	
+	for (i=0;i<thread;i++) {
+		 WaitForSingleObject(pid[i], INFINITE);
+	}
+#else
 	pthread_t pid[thread+1];
 	int i;
 
@@ -177,6 +195,7 @@ _start(struct global_queue *gmq, struct timer *t) {
 	for (i=0;i<=thread;i++) {
 		pthread_join(pid[i], NULL); 
 	}
+#endif
 }
 
 lua_State *
