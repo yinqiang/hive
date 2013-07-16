@@ -8,10 +8,18 @@ local function accepter(fd, addr, listen_fd)
 	return client
 end
 
+local function udp(fd,len,msg,peer_ip,peer_port)
+      local obj=cell.bind(fd)
+      obj:write("test",peer_ip,peer_port)
+      print("receive from ",peer_ip,peer_port)
+
+end
+
 function cell.main()
 	print("[cell main]",cell.self)
 	-- save listen_fd for prevent gc.
 	cell.listen("127.0.0.1:8888",accepter)
+	cell.open(9998,udp)
 --[[ socket api
 	local sock = cell.connect("localhost", 8888)
 	local line = sock:readline(fd)
@@ -27,10 +35,10 @@ function cell.main()
 		cell.sleep(900)
 		cell.cmd("kill",ping) end
 	)
-	for i=1,10 do
+	for i=1,1 do
 		print(pcall(cell.call,ping, "ping"))
 		cell.sleep(100)
 		print(i)
 	end
-	cell.exit()
+--	cell.exit()
 end

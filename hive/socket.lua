@@ -15,6 +15,14 @@ function command.connect(source,addr,port)
 	end
 end
 
+function command.open(source,port)
+	local fd = csocket.open(port)
+	if fd then
+		sockets[fd] = source
+		return fd
+	end
+end
+
 function command.listen(source, port)
 	local fd = csocket.listen(port)
 	if fd then
@@ -48,7 +56,7 @@ cell.command(command)
 cell.message(message)
 cell.dispatch {
 	id = 6, -- socket
-	dispatch = csocket.send, -- fd, sz, msg
+	dispatch =  csocket.send,		   
 	replace = true,
 }
 
@@ -69,10 +77,19 @@ function cell.main()
 				elseif type(c) == "table" then
 					table.insert(c, {v[1],v[2],v[3]})
 				else
-					-- forward: fd , size , message
-					if not pcall(cell.rawsend,c, 6, v[1], v[2], v[3]) then
-						csocket.freepack(v[3])
-						message.disconnect(v[1])
+					if #v == 3 then --tcp
+					   -- forward: fd , size , message
+					   	if not pcall(cell.rawsend,c, 6, v[1], v[2], v[3]) then
+							csocket.freepack(v[3])
+							message.disconnect(v[1])
+						end
+					else --udp
+						-- forward: fd , size , message,peer_ip,peer_port
+					   	if not pcall(cell.rawsend,c, 6, v[1], v[2], v[3],v[4],v[5]) then
+							csocket.freepack(v[3])
+							message.disconnect(v[1])
+						end
+						
 					end
 				end
 			else

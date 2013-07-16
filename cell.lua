@@ -165,7 +165,7 @@ local sockets_arg = {}
 local sockets_closed = {}
 local sockets_fd = nil
 local sockets_accept = {}
-
+local sockets_udp = {}
 local socket = {}
 local listen_socket = {}
 
@@ -202,6 +202,15 @@ function cell.connect(addr, port)
 	return setmetatable(obj, socket_meta)
 end
 
+function cell.open(port,accepter)
+	sockets_fd = sockets_fd or cell.cmd("socket")
+	local obj = { __fd = assert(cell.call(sockets_fd, "open", self, port), "Open failed") }
+	sockets_udp[obj.__fd]=function(fd,len,msg,peer_ip,peer_port)
+		accepter(fd,len,msg,peer_ip,peer_port)
+	end
+	return setmetatable(obj, socket_meta)
+end
+
 function cell.listen(port, accepter)
 	assert(type(accepter) == "function")
 	sockets_fd = sockets_fd or cell.cmd("socket")
@@ -230,9 +239,10 @@ function socket:disconnect()
 	cell.send(sockets_fd, "disconnect", fd)
 end
 
-function socket:write(msg)
+function socket:write(msg,...)
 	local fd = self.__fd
-	cell.rawsend(sockets_fd, 6, fd, csocket.sendpack(msg))
+	local sz,msg=csocket.sendpack(msg)
+	cell.rawsend(sockets_fd, 6, fd,sz,msg,...)
 end
 
 local function socket_wait(fd, sep)
@@ -287,7 +297,7 @@ end
 
 cell.dispatch {
 	id = 6, -- socket
-	dispatch = function(fd, sz, msg)
+	dispatch = function(fd, sz, msg,...)
 		local accepter = sockets_accept[fd]
 		if accepter then
 			-- accepter: new fd (sz) ,  ip addr (msg)
@@ -298,6 +308,11 @@ cell.dispatch {
 			end)
 			suspend(nil, nil, co, coroutine.resume(co))
 			return
+		end
+		local udp = sockets_udp[fd]
+		if udp then
+		       udp(fd,sz,msg,...)
+		       return
 		end
 		local ev = sockets_event[fd]
 		sockets_event[fd] = nil
