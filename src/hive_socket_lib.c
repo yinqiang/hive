@@ -144,7 +144,8 @@ new_socket(struct socket_pool *p, int sock,int stype) {
 			s->id = id;
 			s->stype = stype;
 			p->count++;
-			if (++p->id > MAX_ID) {
+			p->id = id + 1;
+			if (p->id > MAX_ID) {
 				p->id = 1;
 			}
 			assert(s->head == NULL && s->tail == NULL);
@@ -273,6 +274,9 @@ lclose(lua_State *L) {
 	struct socket * s = p->s[id % p->cap];
 	if (id != s->id) {
 		return luaL_error(L, "Close invalid socket %d", id);
+	}
+	if (s->status == STATUS_INVALID) {
+		return 0;
 	}
 	if (s->head == NULL) {
 		force_close(s,p);
