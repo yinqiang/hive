@@ -21,7 +21,8 @@ local cell = {}
 local self = c.self
 local system = c.system
 cell.self = self
-
+sraw = require "cell.stable"
+sraw.init()  -- init lightuserdata metatable
 local event_q1 = {}
 local event_q2 = {}
 

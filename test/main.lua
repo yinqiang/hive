@@ -15,6 +15,8 @@ local function udp(fd,len,msg,peer_ip,peer_port)
 
 end
 
+local gui = sraw.create()
+gui[1]="test"
 function cell.main()
 	print("[cell main]",cell.self)
 	-- save listen_fd for prevent gc.
@@ -27,7 +29,7 @@ function cell.main()
 	sock:write(line .. "\n")
 ]]
 	print(cell.cmd("echo","Hello world"))
-	local ping, pong = cell.cmd("launch", "test.pingpong","pong")
+	local ping, pong = cell.cmd("launch", "test.pingpong","pong",gui)
 	print(ping,pong)
 	print(cell.call(ping, "ping"))
 	cell.fork(function()

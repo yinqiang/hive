@@ -7,7 +7,9 @@ src/hive_scheduler.c \
 src/hive_env.c \
 src/hive_cell_lib.c \
 src/hive_system_lib.c \
-src/hive_socket_lib.c
+src/hive_socket_lib.c \
+src/stable.c \
+src/lua-stable.c 
 
 all :
 	echo 'make win or make posix or make macosx'
