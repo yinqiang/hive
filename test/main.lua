@@ -1,5 +1,5 @@
 local cell = require "cell"
-
+local msgpack = require "cell.msgpack"
 local function accepter(fd, addr, listen_fd)
 	print("Accept from ", listen_fd)
 	-- can't read fd in this function, because socket.cell haven't forward data from fd
@@ -8,15 +8,18 @@ local function accepter(fd, addr, listen_fd)
 	return client
 end
 
+local gui = sraw.create()
+gui[1]="test"
+local p = msgpack.pack({a="msgpack",b=2})
+local up =msgpack.unpack(p)
+print(up.a)
 local function udp(fd,len,msg,peer_ip,peer_port)
       local obj=cell.bind(fd)
-      obj:write("test",peer_ip,peer_port)
+      obj:write(p,peer_ip,peer_port)
       print("receive from ",peer_ip,peer_port)
 
 end
 
-local gui = sraw.create()
-gui[1]="test"
 function cell.main()
 	print("[cell main]",cell.self)
 	-- save listen_fd for prevent gc.

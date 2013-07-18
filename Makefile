@@ -9,7 +9,8 @@ src/hive_cell_lib.c \
 src/hive_system_lib.c \
 src/hive_socket_lib.c \
 src/stable.c \
-src/lua-stable.c 
+src/lua-stable.c \
+src/lua_cmsgpack.c 
 
 all :
 	echo 'make win or make posix or make macosx'

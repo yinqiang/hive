@@ -1,5 +1,6 @@
 #include "lua.h"
 #include "lauxlib.h"
+#include "hive.h"
 #include "hive_env.h"
 #include "hive_cell.h"
 #include "hive_cell_lib.h"
@@ -231,7 +232,9 @@ struct cell *
 cell_new(lua_State *L, const char * mainfile) {
 	luaL_requiref(L, "cell.c.socket", socket_lib, 0);
 	lua_pop(L,1);
-	luaL_requiref(L, "cell.stable", luaopen_stable_raw, 0);
+	luaL_requiref(L, "cell.stable", luaopen_stable_raw, 0); //sraw
+	lua_pop(L,1); 
+	luaL_requiref(L, "cell.msgpack", luaopen_cmsgpack, 0); //messagepack
 	lua_pop(L,1);
 	hive_getenv(L, "cell_map");
 	int cell_map = lua_absindex(L,-1);	// cell_map
