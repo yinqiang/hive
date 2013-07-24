@@ -8,6 +8,7 @@ cell.command {
 }
 
 function cell.main(msg,gui)
+	print("=========",win_handle["test"])
 	print("pingpong launched",gui[1])
 	return msg
 end

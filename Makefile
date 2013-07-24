@@ -23,7 +23,7 @@ hive/core.so : $(SRC)
 	gcc -g -Wall --shared -fPIC -o $@ $^ -lpthread
 
 hive/core.dll : $(SRC)
-	gcc -g -Wall --shared -o $@ $^ $(LUALIB_MINGW)  -march=i686 -lws2_32
+	gcc -g -Wall --shared -o $@ $^ $(LUALIB_MINGW) -L./lua52  -march=i686 -lws2_32
 
 hive/core.dylib : $(SRC)
 	gcc -g -Wall -bundle -undefined dynamic_lookup -fPIC -o $@ $^ -lpthread

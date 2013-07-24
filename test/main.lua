@@ -13,6 +13,9 @@ gui[1]="test"
 local p = msgpack.pack({a="msgpack",b=2})
 local up =msgpack.unpack(p)
 print(up.a)
+
+print("--------",win_handle)
+win_handle["test"] = "win_handle hello world"
 local function udp(fd,len,msg,peer_ip,peer_port)
       local obj=cell.bind(fd)
       obj:write(p,peer_ip,peer_port)

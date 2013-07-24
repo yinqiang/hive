@@ -5,6 +5,7 @@
 #include "hive_env.h"
 #include "hive_scheduler.h"
 #include "hive_system_lib.h"
+#include "stable.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -202,15 +203,72 @@ _start(struct global_queue *gmq, struct timer *t) {
 #endif
 }
 
+#if defined(_GUI) //for gui app,print to file
+static void
+luaV_addlstring(luaL_Buffer *b, const char *s, size_t l, int toline)
+{
+    while (l--)
+    {
+	luaL_addchar(b, *s);
+	s++;
+    }
+}
+
+static int
+hive_print(lua_State *L)
+{
+    int i, n = lua_gettop(L); /* nargs */
+    const char *s;
+    size_t l;
+    luaL_Buffer b;
+    luaL_buffinit(L, &b);
+    lua_getglobal(L, "tostring");
+    for (i = 1; i <= n; i++)
+    {
+	lua_pushvalue(L, -1); /* tostring */
+	lua_pushvalue(L, i); /* arg */
+	lua_call(L, 1, 1);
+	s = lua_tolstring(L, -1, &l);
+	if (s == NULL)
+	    return luaL_error(L, "cannot convert to string");
+	if (i > 1) luaL_addchar(&b, ' '); /* use space instead of tab */
+	luaV_addlstring(&b, s, l, 0);
+	lua_pop(L, 1);
+    }
+    luaL_pushresult(&b);
+    const char *p, *s2 = lua_tolstring(L, -1, &l);
+    lua_pop(L,1);
+    hive_getenv(L,"print_log");
+    FILE * fp = lua_touserdata(L,-1);
+    fwrite(s2,sizeof(char),l,fp);
+    char line[2] = "\r\n";
+    fwrite(line,sizeof(char),2,fp);
+    fflush(fp);    
+    lua_pop(L,1);
+    return 0;
+}
+#endif 
+
 lua_State *
 scheduler_newtask(lua_State *pL) {
 	lua_State *L = luaL_newstate();
 	luaL_openlibs(L);
 	hive_createenv(L);
-
+#if defined(_GUI) //for gui app,print to file
+	FILE * fp;
+	fp=fopen("print.log","a+");
+	lua_pushlightuserdata(L,fp);
+	hive_setenv(L,"print_log");
+	/* print */
+    lua_pushcfunction(L, hive_print);
+    lua_setglobal(L, "print");
+#endif
 	struct global_queue * mq = hive_copyenv(L, pL, "message_queue");
 	globalmq_inc(mq);
 	hive_copyenv(L, pL, "system_pointer");
+
+	hive_copyenv(L, pL, "cell_registar");
+	hive_copyenv(L, pL, "win_handle_registar");
 
 	lua_newtable(L);
 	lua_newtable(L);
@@ -253,7 +311,16 @@ scheduler_start(lua_State *L) {
 
 	lua_pushvalue(L,-1);
 	hive_setenv(L, "message_queue");
-
+	//  cell registar ,win handle registar
+	//struct table * cell_registar = lua_newuserdata(L,sizeof(struct table));
+	struct table * cell_registar = stable_create();
+	lua_pushlightuserdata(L,cell_registar);
+	hive_setenv(L,"cell_registar");
+	
+	struct table * handle_registar = stable_create();
+	lua_pushlightuserdata(L,handle_registar);
+	hive_setenv(L,"win_handle_registar");
+	// end
 	lua_State *sL;
 
 	sL = scheduler_newtask(L);

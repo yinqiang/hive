@@ -1,7 +1,9 @@
 #include "lua.h"
 #include "lauxlib.h"
 #include "hive_scheduler.h"
-
+#if defined(_WIN32)
+__declspec(dllexport)
+#endif
 int
 luaopen_hive_core(lua_State *L) {
 	luaL_Reg l[] = {

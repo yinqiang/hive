@@ -17,5 +17,5 @@ struct cell * cell_fromuserdata(lua_State *L, int index);
 void cell_grab(struct cell *c);
 void cell_release(struct cell *c);
 void cell_close(struct cell *c);
-
+void cell_setname(struct cell *c,const char * name);
 #endif

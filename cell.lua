@@ -20,6 +20,7 @@ local cell = {}
 
 local self = c.self
 local system = c.system
+win_handle =  c.win_handle
 cell.self = self
 sraw = require "cell.stable"
 sraw.init()  -- init lightuserdata metatable

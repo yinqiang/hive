@@ -7,12 +7,13 @@
 #include "hive_seri.h"
 #include "hive_scheduler.h"
 #include "hive_socket_lib.h"
-
+#include "stable.h"
 #include "lua-stable.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
 #include <stdbool.h>
+#include <string.h>
 
 #define DEFAULT_QUEUE 64
 
@@ -35,6 +36,7 @@ struct cell {
 	struct message_queue mq;
 	bool quit;
 	bool close;
+        char name[50]; //for regist
 };
 
 struct cell_ud {
@@ -78,6 +80,13 @@ ltostring(lua_State *L) {
 static int
 lrelease(lua_State *L) {
 	struct cell_ud * cud = lua_touserdata(L,1);
+	/*TODO fix delete form cell_registar
+	 hive_getenv(L,"cell_registar");
+	 struct table cell_registar = lua_newuserdata(L,-1);
+	 cell_lock(cud->c);
+	 statble_del_string(cud->c->name);
+	 cell_unlock(cud->c);
+	*/
 	cell_release(cud->c);
 	cud->c = NULL;
 	return 0;
@@ -244,7 +253,13 @@ cell_new(lua_State *L, const char * mainfile) {
 	cell_touserdata(L, cell_map, c);	// cell_map cell_lib cell_ud
 
 	lua_setfield(L, -2, "self");	// cell_map cell_lib
-
+	// win_handle_registar
+	hive_getenv(L,"win_handle_registar");
+	//struct table  * handle = lua_touserdata(L,-1);
+	//lua_pop(L, 1);	
+	//lua_pushlightuserdata(L,handle);
+	lua_setfield(L,-2,"win_handle");
+	//
 	hive_getenv(L, "system_pointer");
 	struct cell * sys = lua_touserdata(L, -1);	// cell_map cell_lib system_cell
 	lua_pop(L, 1);	
@@ -361,4 +376,8 @@ cell_send(struct cell *c, int port, void *msg) {
 	mq_push(&c->mq, &m);
 	cell_unlock(c);
 	return 0;
+}
+void 
+cell_setname(struct cell *c,const char * name) {
+  strcpy(c->name,name);
 }

@@ -3,10 +3,13 @@
 #include "hive_seri.h"
 #include "hive_cell.h"
 #include "hive_seri.h"
+#include "stable.h"
+#include "hive.h"
 
 #include "lua.h"
 #include "lauxlib.h"
 
+#include <string.h>
 static int
 ldispatch(lua_State *L) {
 	luaL_checktype(L, 1, LUA_TFUNCTION);
@@ -44,12 +47,80 @@ lsend(lua_State *L) {
 	return 0;
 }
 
+static int
+lregister(lua_State *L) {
+  const char * name = luaL_checkstring(L,1);
+  if(strlen(name) >= 50){
+    return luaL_error(L,"name:%s is too long,max is 49",name);
+  }
+  hive_getenv(L,"cell_registar");
+  struct table * tmp = lua_touserdata(L,-1);
+  hive_getenv(L,"cell_point");
+  struct cell * c = lua_touserdata(L,-1);
+  cell_setname(c,name);
+  stable_setid(tmp,name,strlen(name),(uint64_t)(uintptr_t)c);
+  lua_pop(L,2);
+  return 0;
+}
+
+#if defined(_WIN32)
+#include <windows.h>
+//post msg to win handle
+static int
+lpost_message(lua_State *L) {
+  UINT msg_type = 999;//hard code to windows
+  HWND handle;
+  if(lua_isstring(L,1)) {
+    const char * handle_name=luaL_checkstring(L,1);
+    hive_getenv(L,"win_handle_registar");
+    struct table * registar = lua_touserdata(L,-1);
+    lua_pop(L,1);
+    handle = (HWND)stable_id(registar,handle_name,strlen(handle_name));
+  } else {
+    handle = (HWND)luaL_checkinteger(L,1);
+  }
+  const char * msg = luaL_checkstring(L,2);
+  char * to = malloc(strlen(msg)); //must free in windows
+  memcpy(to,msg,strlen(msg));
+  PostMessage(handle,msg_type,0,to);
+  return 0;
+}
+
+////////////for windows api
+HIVE_API
+int
+send_to_cell(lua_State *L,char * name,char * msg){
+  int port = 888; //win32 windows msg hard code
+  hive_getenv(L,"cell_registar");
+  struct table * registar = lua_touserdata(L,-1);
+  lua_pop(L,1);
+  struct cell * c =(struct cell *)stable_id(registar,name,strlen(name));
+  if(cell_send(c,port,msg)) {
+    return 1; //cell closed
+  }
+  return 0;
+}
+HIVE_API
+int
+regist_handle(lua_State *L,char * name,int size,HWND handle) {
+  hive_getenv(L,"win_handle_registar");
+  struct table * registar = lua_touserdata(L,-1);
+  lua_pop(L,1);
+  stable_setid(registar,name,size,(uint64_t)handle);
+  return 0;
+}
+
+#endif
 int
 cell_lib(lua_State *L) {
 	luaL_checkversion(L);
 	luaL_Reg l[] = {
 		{ "dispatch", ldispatch },
 		{ "send", lsend },
+		{ "register", lregister },
+#if defined(_WIN32)
+		{"post_message",lpost_message},
+#endif
 		{ NULL, NULL },
 	};
 	luaL_newlib(L,l);
