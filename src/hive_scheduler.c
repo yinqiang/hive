@@ -122,7 +122,7 @@ timer_init(struct timer *t, struct cell * sys, struct global_queue *mq) {
 
 static inline void
 send_tick(struct cell * c) {
-	cell_send(c, 0, NULL);
+	cell_send(c, 0, NULL,0);
 }
 
 static void

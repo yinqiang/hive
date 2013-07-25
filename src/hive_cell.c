@@ -16,10 +16,10 @@
 #include <string.h>
 
 #define DEFAULT_QUEUE 64
-
 struct message {
 	int port;
 	void * buffer;
+	int size;
 };
 
 struct message_queue {
@@ -209,6 +209,7 @@ static int
 lcallback(lua_State *L) {
 	int port = lua_tointeger(L,1);
 	void *msg = lua_touserdata(L,2);
+	int size = lua_tointeger(L,3);
 	int err;
 	lua_settop(L,0);
 	lua_pushvalue(L, lua_upvalueindex(1));	// traceback
@@ -216,7 +217,14 @@ lcallback(lua_State *L) {
 		lua_pushvalue(L, lua_upvalueindex(3));	// dispatcher 3
 		lua_pushinteger(L, port);
 		err = lua_pcall(L, 1, 0, 1);
-	} else {
+	}else if(port == GUI_PORT) { //msg from win32 gui
+		lua_pushvalue(L, lua_upvalueindex(3));	// dispatcher 3
+		lua_pushinteger(L, port);
+		lua_pushlightuserdata(L, msg);	// dispatcher port  msg 
+		lua_pushinteger(L, size);
+		err = lua_pcall(L,3, 0, 1);
+	}
+	else {
 		lua_pushvalue(L, lua_upvalueindex(3));	// traceback dispatcher 
 		lua_pushinteger(L, port);	// traceback dispatcher port
 		lua_pushvalue(L, lua_upvalueindex(2));	// traceback dispatcher port data_unpack
@@ -316,7 +324,8 @@ _dispatch(lua_State *L, struct message *m) {
 	lua_pushvalue(L, 1);	// dup callback
 	lua_pushinteger(L, m->port);
 	lua_pushlightuserdata(L, m->buffer);
-	lua_call(L, 2, 0);
+	lua_pushinteger(L, m->size);
+	lua_call(L, 3, 0);
 }
 
 static void
@@ -366,13 +375,13 @@ cell_dispatch_message(struct cell *c) {
 }
 
 int 
-cell_send(struct cell *c, int port, void *msg) {
+cell_send(struct cell *c, int port, void *msg,int size) {
 	cell_lock(c);
 	if (c->quit || c->close) {
 		cell_unlock(c);
 		return 1;
 	}
-	struct message m = { port, msg };
+	struct message m = { port, msg ,size};
 	mq_push(&c->mq, &m);
 	cell_unlock(c);
 	return 0;
