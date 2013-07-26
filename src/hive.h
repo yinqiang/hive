@@ -3,6 +3,9 @@
 #define GUI_PORT 100
 LUALIB_API int luaopen_cmsgpack (lua_State *L);
 
+struct msg_ud {
+	char * data;	
+};
 
 #if defined(_WIN32)
 #include <windows.h>

@@ -92,6 +92,11 @@ lrelease(lua_State *L) {
 	return 0;
 }
 
+static int release_msgud(lua_State *L) {
+	struct msg_ud * ud = (struct msg_ud *)lua_touserdata(L,1);
+	free(ud->data);
+	return 0;
+}
 void 
 cell_touserdata(lua_State *L, int index, struct cell *c) {
 	lua_rawgetp(L, index, c);
@@ -220,7 +225,16 @@ lcallback(lua_State *L) {
 	}else if(port == GUI_PORT) { //msg from win32 gui
 		lua_pushvalue(L, lua_upvalueindex(3));	// dispatcher 3
 		lua_pushinteger(L, port);
-		lua_pushlightuserdata(L, msg);	// dispatcher port  msg 
+		struct msg_ud * ud = (struct msg_ud *)lua_newuserdata(L,sizeof(*ud));// dispatcher port  msg 
+		ud->data =  msg;
+		if (luaL_newmetatable(L, "gui_msg")) { //metatable
+			//lua_pushcfunction(L, ltostring);
+			//lua_setfield(L, -2, "__tostring");
+			lua_pushcfunction(L, release_msgud);
+			lua_setfield(L, -2, "__gc");
+		}
+		lua_setmetatable(L, -2);
+		//lua_pushlightuserdata(L, msg);	
 		lua_pushinteger(L, size);
 		err = lua_pcall(L,3, 0, 1);
 	}

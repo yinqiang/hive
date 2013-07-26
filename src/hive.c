@@ -5,7 +5,7 @@
 __declspec(dllexport)
 #endif
 int
-luaopen_hive_core(lua_State *L) {
+luaopen_hivecore(lua_State *L) {
 	luaL_Reg l[] = {
 		{ "start", scheduler_start },
 		{ NULL, NULL },

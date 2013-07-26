@@ -15,18 +15,20 @@ src/lua_cmsgpack.c
 all :
 	echo 'make win or make posix or make macosx'
 
-win : hive/core.dll
-posix : hive/core.so
-macosx: hive/core.dylib
+win : hivecore.dll hivcore.lib
+posix : hivecore.so
+macosx: hivecore.dylib
 
-hive/core.so : $(SRC)
+hivecore.so : $(SRC)
 	gcc -g -Wall --shared -fPIC -o $@ $^ -lpthread
 
-hive/core.dll : $(SRC)
-	gcc -g -Wall --shared -o $@ $^ $(LUALIB_MINGW) -L./lua52  -march=i686 -lws2_32
+hivecore.dll : $(SRC)
+	gcc -g -Wall -D_GUI --shared -o $@ $^ $(LUALIB_MINGW) -L./lua52  -march=i686 -lws2_32
 
-hive/core.dylib : $(SRC)
+hivecore.dylib : $(SRC)
 	gcc -g -Wall -bundle -undefined dynamic_lookup -fPIC -o $@ $^ -lpthread
 
 clean :
-	rm -rf hive/core.dll hive/core.so hive/core.dylib hive/core.dylib.dSYM
+	rm -rf hivecore.dll hivecore.so hivecore.dylib hivecore.dylib.dSYM
+hivecore.lib :
+	dlltool -d hivecore.def -l hivecore.lib
