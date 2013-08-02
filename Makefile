@@ -15,7 +15,7 @@ src/lua_cmsgpack.c
 all :
 	echo 'make win or make posix or make macosx'
 
-win : hivecore.dll hivcore.lib
+win : hivecore.dll hivecore.lib
 posix : hivecore.so
 macosx: hivecore.dylib
 
