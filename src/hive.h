@@ -25,7 +25,8 @@ HIVE_API
 int send_to_cell(lua_State *L,char * name,char * msg,int size);
 HIVE_API
 int regist_handle(lua_State *L,char * name,int size,HWND handle);
-
+HIVE_API
+void hive_free(char * ptr);
 #endif
 
 #endif

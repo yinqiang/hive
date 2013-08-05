@@ -15,3 +15,10 @@ luaopen_hivecore(lua_State *L) {
 
 	return 1;
 }
+
+#if defined(_WIN32)
+__declspec(dllexport)
+#endif
+void hive_free(char * ptr) {
+	free(ptr);
+}
