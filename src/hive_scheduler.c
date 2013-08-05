@@ -241,7 +241,7 @@ hive_print(lua_State *L)
     hive_getenv(L,"print_log");
     FILE * fp = lua_touserdata(L,-1);
     fwrite(s2,sizeof(char),l,fp);
-    char line[2] = "\r\n";
+    char line[2] = "\n";
     fwrite(line,sizeof(char),2,fp);
     fflush(fp);    
     lua_pop(L,1);

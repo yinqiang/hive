@@ -29,6 +29,6 @@ hivecore.dylib : $(SRC)
 	gcc -g -Wall -bundle -undefined dynamic_lookup -fPIC -o $@ $^ -lpthread
 
 clean :
-	rm -rf hivecore.dll hivecore.so hivecore.dylib hivecore.dylib.dSYM
+	rm -rf hivecore.dll hivecore.so hivecore.dylib hivecore.dylib.dSYM hivecore.lib
 hivecore.lib :
 	dlltool -d hivecore.def -l hivecore.lib

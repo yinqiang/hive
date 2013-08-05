@@ -430,6 +430,15 @@ static void mp_encode_lua_type(lua_State *L, mp_buf *buf, int level) {
     lua_pop(L,1);
 }
 
+int mp_pack_raw(lua_State *L) {
+    mp_buf *buf = mp_buf_new();
+    mp_encode_lua_type(L,buf,0);
+    lua_pushinteger(L,buf->len);
+    lua_pushlightuserdata(L,(char*)buf->b);
+    free(buf);
+    // buf.b free in gui
+    return 2;
+}
 static int mp_pack(lua_State *L) {
     mp_buf *buf = mp_buf_new();
 

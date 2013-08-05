@@ -75,9 +75,11 @@ lregister(lua_State *L) {
 //post msg to win handle
 static int
 lpost_message(lua_State *L) {
-  UINT msg_type = 999;//hard code to windows
   HWND handle;
-  if(lua_isstring(L,1)) {
+  int cmd,len;
+  char * msg;
+  int t = lua_type(L,1);
+  if(t == LUA_TSTRING) {
     const char * handle_name=luaL_checkstring(L,1);
     hive_getenv(L,"win_handle_registar");
     struct table * registar = lua_touserdata(L,-1);
@@ -86,11 +88,24 @@ lpost_message(lua_State *L) {
   } else {
     handle = (HWND)luaL_checkinteger(L,1);
   }
-  const char * msg = luaL_checkstring(L,2);
-  char * to = malloc(strlen(msg)); //must free in windows
-  memcpy(to,msg,strlen(msg));
-  PostMessage(handle,msg_type,0,to);
-  return 0;
+  cmd = luaL_checkinteger(L,2);
+  //todo check 10000<cmd<99999 
+  t = lua_type(L,-1);
+  if(t == LUA_TTABLE) {
+	mp_pack_raw(L);
+	len = luaL_checkinteger(L,-2);
+	msg = lua_touserdata(L,-1);
+	struct message_buf * buf = malloc(sizeof(*buf));
+	buf->len=len;
+	buf->type = TYPE_MSGPACK;
+	buf->b = msg;
+	buf->cmd = cmd;
+  	PostMessage(handle,WM_HIVE_CELL,0,buf); //msg must free in gui
+  	return 0;
+		
+  }else
+	lua_pushstring(L,"error,last para must table\n");
+	return 1;
 }
 
 HIVE_API
@@ -100,6 +115,9 @@ send_to_cell(lua_State *L,char * name,char * msg,int size){
   struct table * registar = lua_touserdata(L,-1);
   lua_pop(L,1);
   struct cell * c =(struct cell *)stable_id(registar,name,strlen(name));
+  if(c == NULL){
+	return 2;
+  }
   if(cell_send(c,GUI_PORT,msg,size)) {
     return 1; //cell closed
   }
