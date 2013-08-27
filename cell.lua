@@ -176,11 +176,17 @@ end
 local socket_meta = {
 	__index = socket,
 	__gc = close_msg,
+	__tostring = function(self)
+		return "[socket: " .. self.__fd .. "]"
+	end,
 }
 
 local listen_meta = {
 	__index = listen_socket,
 	__gc = close_msg,
+	__tostring = function(self)
+		return "[socket listen: " .. self.__fd .. "]"
+	end,
 }
 
 
@@ -200,7 +206,9 @@ function cell.listen(port, accepter)
 	assert(type(accepter) == "function")
 	sockets_fd = sockets_fd or cell.cmd("socket")
 	local obj = { __fd = assert(cell.call(sockets_fd, "listen", self, port), "Listen failed") }
-	sockets_accept[obj.__fd] = accepter
+	sockets_accept[obj.__fd] =  function(fd, addr)
+		return accepter(fd, addr, obj)
+	end
 	return setmetatable(obj, listen_meta)
 end
 
@@ -218,6 +226,7 @@ function socket:disconnect()
 	if sockets_event[fd] then
 		cell.wakeup(sockets_event[fd])
 	end
+
 	cell.send(sockets_fd, "disconnect", fd)
 end
 
@@ -346,7 +355,6 @@ cell.dispatch {
 		if f == nil then
 			print("Unknown message ", cmd)
 		else
-			local n = select("#", ...)
 			local co = coroutine.create(function(...) return "EXIT", f(...) end)
 			suspend(source, session, co, coroutine.resume(co,...))
 		end
@@ -360,7 +368,6 @@ cell.dispatch {
 		if f == nil then
 			c.send(source, 1, session, false, "Unknown command " ..  cmd)
 		else
-			local n = select("#", ...)
 			local co = coroutine.create(function(...) return "RETURN", f(...) end)
 			suspend(source, session, co, coroutine.resume(co, ...))
 		end

@@ -21,6 +21,7 @@ none:
 	@echo "Please do 'make PLATFORM' where PLATFORM is one of these:"
 	@echo "   $(PLATS)"
 
+<<<<<<< HEAD
 all:	$(PLAT)
 
 posix:	$(SRC)
@@ -34,3 +35,20 @@ macosx:	$(SRC)
 
 clean:
 	$(RM) hive.dll hive.so hive.dylib hive.dylib.dSYM
+=======
+win : hive/core.dll
+posix : hive/core.so
+macosx: hive/core.dylib
+
+hive/core.so : $(SRC)
+	gcc -g -Wall --shared -fPIC -o $@ $^ -lpthread
+
+hive/core.dll : $(SRC)
+	gcc -g -Wall --shared -o $@ $^ $(LUALIB_MINGW) -lpthread -march=i686 -lws2_32
+
+hive/core.dylib : $(SRC)
+	gcc -g -Wall -bundle -undefined dynamic_lookup -fPIC -o $@ $^ -lpthread
+
+clean :
+	rm -rf hive/core.dll hive/core.so hive/core.dylib hive/core.dylib.dSYM
+>>>>>>> 9d9b498265f37d5283731265ca796b8de9ded2f6

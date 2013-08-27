@@ -141,7 +141,8 @@ new_socket(struct socket_pool *p, int sock) {
 			s->fd = sock;
 			s->id = id;
 			p->count++;
-			if (++p->id > MAX_ID) {
+			p->id = id + 1;
+			if (p->id > MAX_ID) {
 				p->id = 1;
 			}
 			assert(s->head == NULL && s->tail == NULL);
@@ -211,9 +212,17 @@ force_close(struct socket *s, struct socket_pool *p) {
 	}
 	s->head = s->tail = NULL;
 	s->status = STATUS_INVALID;
+<<<<<<< HEAD
 	sp_del(p->fd, s->fd);
 	// closesocket(s->fd);
 	close(s->fd);
+=======
+	if (s->fd >=0 ) {
+		sp_del(p->fd, s->fd);
+		closesocket(s->fd);
+		s->fd = -1;
+	}
+>>>>>>> 9d9b498265f37d5283731265ca796b8de9ded2f6
 	--p->count;
 }
 
@@ -224,6 +233,9 @@ lclose(lua_State *L) {
 	struct socket * s = p->s[id % p->cap];
 	if (id != s->id) {
 		return luaL_error(L, "Close invalid socket %d", id);
+	}
+	if (s->status == STATUS_INVALID) {
+		return 0;
 	}
 	if (s->head == NULL) {
 		force_close(s,p);
@@ -304,6 +316,7 @@ push_result(lua_State *L, int idx, struct socket *s, struct socket_pool *p) {
 			lua_rawseti(L, -2, 2);
 			lua_pushlightuserdata(L, buffer);
 			lua_rawseti(L, -2, 3);
+			lua_pop(L,1);
 		}
 		if (r < READ_BUFFER)
 			return ret;
@@ -317,8 +330,9 @@ accept_result(lua_State *L, int idx, struct socket *s, struct socket_pool *p) {
 		struct sockaddr_in remote_addr;
 		socklen_t len = sizeof(struct sockaddr_in);
 		int client_fd = accept(s->fd , (struct sockaddr *)&remote_addr ,  &len);
-		if (client_fd < 0)
+		if (client_fd < 0) {
 			return ret;
+		}
 		int id = new_socket(p, client_fd);
 		if (id < 0) {
 			return ret;
@@ -333,6 +347,7 @@ accept_result(lua_State *L, int idx, struct socket *s, struct socket_pool *p) {
 		lua_rawseti(L, -2, 2);
 		lua_pushstring(L, inet_ntoa(remote_addr.sin_addr));
 		lua_rawseti(L, -2, 3);
+		lua_pop(L,1);
 	}
 }
 
@@ -424,7 +439,8 @@ lsend(lua_State *L) {
 	}
 	if (s->status != STATUS_SUSPEND) {
 		free(msg);
-		return luaL_error(L,"Write to closed socket %d", id);
+//		return luaL_error(L,"Write to closed socket %d", id);
+		return 0;
 	}
 	if (s->head) {
 		struct write_buffer * buf = malloc(sizeof(*buf));
@@ -550,7 +566,6 @@ lpush(lua_State *L) {
 		append_buffer(buffer, msg, sz);
 	}
 	lua_pushinteger(L, sz + bytes);
-
 	free(msg);
 	return 2;
 }
@@ -765,6 +780,7 @@ socket_lib(lua_State *L) {
 	luaL_newlibtable(L,l);
 	struct socket_pool *sp = lua_newuserdata(L, sizeof(*sp));
 	memset(sp, 0, sizeof(*sp));
+	sp->fd = sp_init();
 	lua_newtable(L);
 	lua_pushcfunction(L, lexit);
 	lua_setfield(L, -2, "__gc");
