@@ -1,9 +1,11 @@
 #include "lua.h"
 #include "lauxlib.h"
 #include "hive_scheduler.h"
-
+#if defined(_WIN32)
+__declspec(dllexport)
+#endif
 int
-luaopen_hive_core(lua_State *L) {
+luaopen_hivecore(lua_State *L) {
 	luaL_Reg l[] = {
 		{ "start", scheduler_start },
 		{ NULL, NULL },
@@ -12,4 +14,11 @@ luaopen_hive_core(lua_State *L) {
 	luaL_newlib(L,l);
 
 	return 1;
+}
+
+#if defined(_WIN32)
+__declspec(dllexport)
+#endif
+void hive_free(char * ptr) {
+	free(ptr);
 }

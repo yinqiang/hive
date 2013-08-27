@@ -5,10 +5,15 @@
 #include "hive_env.h"
 #include "hive_scheduler.h"
 #include "hive_system_lib.h"
+#include "stable.h"
 
 #include <stdint.h>
 #include <stdio.h>
+#ifdef _WIN32
+#include <windows.h>
+#else
 #include <pthread.h>
+#endif
 #include <unistd.h>
 #include <stdbool.h>
 #include <string.h>
@@ -117,7 +122,7 @@ timer_init(struct timer *t, struct cell * sys, struct global_queue *mq) {
 
 static inline void
 send_tick(struct cell * c) {
-	cell_send(c, 0, NULL);
+	cell_send(c, 0, NULL,0);
 }
 
 static void
@@ -169,6 +174,20 @@ _worker(void *p) {
 static void
 _start(struct global_queue *gmq, struct timer *t) {
 	int thread = gmq->thread;
+#if defined(_WIN32)
+	HANDLE pid[thread+1];
+	int i =0;
+	pid[0]=CreateThread(NULL, 0, _timer, t, 0, NULL);
+	
+
+	for (i=1;i<=thread;i++) {
+		pid[i]=CreateThread(NULL, 0, _worker, gmq, 0, NULL);
+	}
+	
+	for (i=0;i<thread;i++) {
+		 WaitForSingleObject(pid[i], INFINITE);
+	}
+#else
 	pthread_t pid[thread+1];
 	int i;
 
@@ -181,17 +200,75 @@ _start(struct global_queue *gmq, struct timer *t) {
 	for (i=0;i<=thread;i++) {
 		pthread_join(pid[i], NULL); 
 	}
+#endif
 }
+
+#if defined(_GUI) //for gui app,print to file
+static void
+luaV_addlstring(luaL_Buffer *b, const char *s, size_t l, int toline)
+{
+    while (l--)
+    {
+	luaL_addchar(b, *s);
+	s++;
+    }
+}
+
+static int
+hive_print(lua_State *L)
+{
+    int i, n = lua_gettop(L); /* nargs */
+    const char *s;
+    size_t l;
+    luaL_Buffer b;
+    luaL_buffinit(L, &b);
+    lua_getglobal(L, "tostring");
+    for (i = 1; i <= n; i++)
+    {
+	lua_pushvalue(L, -1); /* tostring */
+	lua_pushvalue(L, i); /* arg */
+	lua_call(L, 1, 1);
+	s = lua_tolstring(L, -1, &l);
+	if (s == NULL)
+	    return luaL_error(L, "cannot convert to string");
+	if (i > 1) luaL_addchar(&b, ' '); /* use space instead of tab */
+	luaV_addlstring(&b, s, l, 0);
+	lua_pop(L, 1);
+    }
+    luaL_pushresult(&b);
+    const char *p, *s2 = lua_tolstring(L, -1, &l);
+    lua_pop(L,1);
+    hive_getenv(L,"print_log");
+    FILE * fp = lua_touserdata(L,-1);
+    fwrite(s2,sizeof(char),l,fp);
+    char line[2] = "\n";
+    fwrite(line,sizeof(char),2,fp);
+    fflush(fp);    
+    lua_pop(L,1);
+    return 0;
+}
+#endif 
 
 lua_State *
 scheduler_newtask(lua_State *pL) {
 	lua_State *L = luaL_newstate();
 	luaL_openlibs(L);
 	hive_createenv(L);
-
+#if defined(_GUI) //for gui app,print to file
+	FILE * fp;
+	fp=fopen("print.log","a+");
+	lua_pushlightuserdata(L,fp);
+	hive_setenv(L,"print_log");
+	/* print */
+    lua_pushcfunction(L, hive_print);
+    lua_setglobal(L, "print");
+#endif
 	struct global_queue * mq = hive_copyenv(L, pL, "message_queue");
 	globalmq_inc(mq);
 	hive_copyenv(L, pL, "system_pointer");
+
+	hive_copyenv(L, pL, "cell_registar");
+	hive_copyenv(L, pL, "win_handle_registar");
 
 	lua_newtable(L);
 	lua_newtable(L);
@@ -234,7 +311,16 @@ scheduler_start(lua_State *L) {
 
 	lua_pushvalue(L,-1);
 	hive_setenv(L, "message_queue");
-
+	//  cell registar ,win handle registar
+	//struct table * cell_registar = lua_newuserdata(L,sizeof(struct table));
+	struct table * cell_registar = stable_create();
+	lua_pushlightuserdata(L,cell_registar);
+	hive_setenv(L,"cell_registar");
+	
+	struct table * handle_registar = stable_create();
+	lua_pushlightuserdata(L,handle_registar);
+	hive_setenv(L,"win_handle_registar");
+	// end
 	lua_State *sL;
 
 	sL = scheduler_newtask(L);

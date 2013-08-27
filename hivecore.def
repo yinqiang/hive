@@ -1,0 +1,8 @@
+LIBRARY hivecore.dll
+EXPORTS
+	send_to_cell @ 1
+	regist_handle @ 2
+~
+
+~
+
