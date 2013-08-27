@@ -35,7 +35,7 @@ static int sp_add(poll_fd fd, int sock, void *ud);
 static void sp_del(poll_fd fd, int sock);
 static void sp_write(poll_fd, int sock, void *ud, bool enable);
 static int sp_wait(poll_fd, struct event *e, int max, int timeout);
-static void sp_nonblocking(int sock);
+static int sp_nonblocking(int sock);
 
 #ifdef __linux__
 #include "socket_epoll.h"
