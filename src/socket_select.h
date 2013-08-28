@@ -177,16 +177,13 @@ sp_wait(struct select_pool *sp, struct event *e, int n, int timeout) {
 }
 
 static int
-sp_nonblocking(int sock) {
-	// unsigned long flag=1; 
-	// fcntl(sock,FIONBIO,&flag);
-
-	int flag = fcntl(sock, F_GETFL, 0);
+sp_nonblocking(int fd) {
+	int flag = fcntl(fd, F_GETFL, 0);
 	if (-1 == flag) {
-		return -1;
+		return flag;
 	}
 
-	return fcntl(sock, F_SETFL, flag | O_NONBLOCK);
+	return fcntl(fd, F_SETFL, flag | O_NONBLOCK);
 }
 
 #endif

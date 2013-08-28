@@ -70,14 +70,14 @@ sp_wait(int efd, struct event *e, int max, int timeout) {
 	return n;
 }
 
-static void
+static int
 sp_nonblocking(int fd) {
 	int flag = fcntl(fd, F_GETFL, 0);
 	if ( -1 == flag ) {
-		return;
+		return flag;
 	}
 
-	fcntl(fd, F_SETFL, flag | O_NONBLOCK);
+	return fcntl(fd, F_SETFL, flag | O_NONBLOCK);
 }
 
 #endif

@@ -21,34 +21,16 @@ none:
 	@echo "Please do 'make PLATFORM' where PLATFORM is one of these:"
 	@echo "   $(PLATS)"
 
-<<<<<<< HEAD
 all:	$(PLAT)
 
 posix:	$(SRC)
-	gcc -g -Wall --shared -fPIC -o hive.so $^ -lpthread
+	gcc -g -Wall --shared -fPIC -o hive/core.so $^ -lpthread
 
 cygwin:	$(SRC)
-	gcc -g -Wall --shared -o hive.dll $^ $(LUALIB_CYGWIN) -lpthread -march=i686 -lws2_32
+	gcc -g -Wall --shared -o hive/core.dll $^ $(LUALIB_CYGWIN) -lpthread -march=i686 -lws2_32
 
 macosx:	$(SRC)
-	gcc -g -Wall -bundle -undefined dynamic_lookup -fPIC -o hive.dylib $^ -lpthread
+	gcc -g -Wall -bundle -undefined dynamic_lookup -fPIC -o hive/core.dylib $^ -lpthread
 
 clean:
-	$(RM) hive.dll hive.so hive.dylib hive.dylib.dSYM
-=======
-win : hive/core.dll
-posix : hive/core.so
-macosx: hive/core.dylib
-
-hive/core.so : $(SRC)
-	gcc -g -Wall --shared -fPIC -o $@ $^ -lpthread
-
-hive/core.dll : $(SRC)
-	gcc -g -Wall --shared -o $@ $^ $(LUALIB_MINGW) -lpthread -march=i686 -lws2_32
-
-hive/core.dylib : $(SRC)
-	gcc -g -Wall -bundle -undefined dynamic_lookup -fPIC -o $@ $^ -lpthread
-
-clean :
-	rm -rf hive/core.dll hive/core.so hive/core.dylib hive/core.dylib.dSYM
->>>>>>> 9d9b498265f37d5283731265ca796b8de9ded2f6
+	$(RM) hive/core.dll hive/core.so hive/core.dylib hive/core.dylib.dSYM

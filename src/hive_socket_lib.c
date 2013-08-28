@@ -212,17 +212,11 @@ force_close(struct socket *s, struct socket_pool *p) {
 	}
 	s->head = s->tail = NULL;
 	s->status = STATUS_INVALID;
-<<<<<<< HEAD
-	sp_del(p->fd, s->fd);
-	// closesocket(s->fd);
-	close(s->fd);
-=======
 	if (s->fd >=0 ) {
 		sp_del(p->fd, s->fd);
 		closesocket(s->fd);
 		s->fd = -1;
 	}
->>>>>>> 9d9b498265f37d5283731265ca796b8de9ded2f6
 	--p->count;
 }
 
