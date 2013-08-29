@@ -1,4 +1,4 @@
-package.cpath = package.cpath .. ";./?.dylib"
+package.cpath = package.cpath .. ";./?.dll;./?.dylib"
 
 local hive = require "hive"
 

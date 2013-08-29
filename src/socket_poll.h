@@ -6,12 +6,12 @@
 
 #if defined(_WIN32) || defined(_WIN64) || defined(__CYGWIN__)
 #define USE_SELECT 1
-#else
+// #else
 
-static void
-closesocket(int fd) {
-	close(fd);
-}
+// static void
+// closesocket(int fd) {
+// 	close(fd);
+// }
 
 #endif
 
@@ -27,6 +27,11 @@ struct event {
 	bool read;
 	bool write;
 };
+
+static void
+closesocket(int fd) {
+	close(fd);
+}
 
 static bool sp_invalid(poll_fd fd);
 static poll_fd sp_init();
