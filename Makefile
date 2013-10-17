@@ -10,6 +10,7 @@ src/hive_system_lib.c \
 src/hive_socket_lib.c \
 src/stable.c \
 src/lua-stable.c \
+src/lpack.c \
 src/lua_cmsgpack.c 
 
 all :

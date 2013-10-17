@@ -267,6 +267,8 @@ cell_new(lua_State *L, const char * mainfile) {
 	lua_pop(L,1); 
 	luaL_requiref(L, "cell.msgpack", luaopen_cmsgpack, 0); //messagepack
 	lua_pop(L,1);
+	luaL_requiref(L, "cell.binlib", luaopen_binlib_c, 0); //messagepack
+	lua_pop(L,1);
 	hive_getenv(L, "cell_map");
 	int cell_map = lua_absindex(L,-1);	// cell_map
 	luaL_requiref(L, "cell.c", cell_lib, 0);	// cell_map cell_lib

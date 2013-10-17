@@ -13,6 +13,8 @@ struct message_buf {
 };
 
 LUALIB_API int luaopen_cmsgpack (lua_State *L);
+LUALIB_API int luaopen_binlib_c (lua_State *L);
+
 int mp_pack_raw(lua_State *L);
 struct msg_ud {
 	char * data;	
