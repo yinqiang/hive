@@ -1,13 +1,13 @@
 #ifndef hive_h
 #define hive_h
-#define GUI_PORT 100
+#define GUI_PORT 7
 #define WM_HIVE_CELL 999
 
-//message type 
+//message type
 #define TYPE_MSGPACK 0
 struct message_buf {
-	int type;
-	int cmd; //cmd type from
+	int type; //default msgpack
+	char cmd[30]; //cmd type from
 	int len;
 	char *b;
 };
@@ -17,7 +17,7 @@ LUALIB_API int luaopen_binlib_c (lua_State *L);
 
 int mp_pack_raw(lua_State *L);
 struct msg_ud {
-	char * data;	
+	char * data;
 };
 
 #if defined(_WIN32)

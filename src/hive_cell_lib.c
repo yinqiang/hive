@@ -30,7 +30,7 @@ lsend(lua_State *L) {
 			return luaL_error(L, "Cell object %p is closed",c);
 		}
 		return 0;
-	} 
+	}
 	lua_pushcfunction(L, data_pack);
 	lua_replace(L,2);	// cell data_pack ...
 	int n = lua_gettop(L);
@@ -76,8 +76,9 @@ lregister(lua_State *L) {
 static int
 lpost_message(lua_State *L) {
   HWND handle;
-  int cmd,len;
+  int len;
   char * msg;
+  char * cmd;
   int t = lua_type(L,1);
   if(t == LUA_TSTRING) {
     const char * handle_name=luaL_checkstring(L,1);
@@ -88,24 +89,28 @@ lpost_message(lua_State *L) {
   } else {
     handle = (HWND)luaL_checkinteger(L,1);
   }
-  cmd = luaL_checkinteger(L,2);
-  //todo check 10000<cmd<99999 
+  cmd = luaL_checkstring(L,2);
+  if (strlen(cmd)>30) {
+    lua_pushstring(L,"error,cmd must less 30 charactar\n");
+    return 1;
+  }
+  //tododo check 10000<cmd<99999
   t = lua_type(L,-1);
   if(t == LUA_TTABLE) {
-	mp_pack_raw(L);
-	len = luaL_checkinteger(L,-2);
-	msg = lua_touserdata(L,-1);
-	struct message_buf * buf = malloc(sizeof(*buf));
-	buf->len=len;
-	buf->type = TYPE_MSGPACK;
-	buf->b = msg;
-	buf->cmd = cmd;
-  	PostMessage(handle,WM_HIVE_CELL,0,buf); //msg must free in gui
-  	return 0;
-		
+    mp_pack_raw(L);
+    len = luaL_checkinteger(L,-2);
+    msg = lua_touserdata(L,-1);
+    struct message_buf * buf = malloc(sizeof(*buf));
+    buf->len=len;
+    buf->type = TYPE_MSGPACK;
+    buf->b = msg;
+    strcpy(buf->cmd,cmd);
+    PostMessage(handle,WM_HIVE_CELL,0,buf); //msg must free in gui
+    return 0;
+
   }else
-	lua_pushstring(L,"error,last para must table\n");
-	return 1;
+    lua_pushstring(L,"error,last para must table\n");
+    return 1;
 }
 
 HIVE_API

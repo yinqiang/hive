@@ -1,5 +1,7 @@
 local c = require "cell.c"
 local csocket = require "cell.c.socket"
+local binlib =  require "cell.binlib"
+local msgpack = require "cell.msgpack"
 local coroutine = coroutine
 local assert = assert
 local select = select
@@ -15,7 +17,7 @@ local task_session = {}
 local task_source = {}
 local command = {}
 local message = {}
-
+local gui = {}
 local cell = {}
 
 local self = c.self
@@ -113,6 +115,9 @@ function cell.message(msgfuncs)
 	message = msgfuncs
 end
 
+function cell.gui(cmdfuncs)
+	gui = cmdfuncs
+end
 local function suspend(source, session, co, ok, op, ...)
 	if ok then
 		if op == "RETURN" then
@@ -171,6 +176,8 @@ local sockets_udp = {}
 local socket = {}
 local listen_socket = {}
 
+local rpc = {}
+local rpc_head = {}
 local function close_msg(self)
 	cell.send(sockets_fd, "disconnect", self.__fd)
 end
@@ -228,7 +235,9 @@ function cell.bind(fd)
 	local obj = { __fd = fd }
 	return setmetatable(obj, socket_meta)
 end
-
+function socket:rpc(rpc_funs)
+	rpc[self.__fd] = rpc_funs
+end
 function socket:disconnect()
 	assert(sockets_fd)
 	local fd = self.__fd
@@ -298,6 +307,23 @@ end
 ----------------------------------------
 
 cell.dispatch {
+	id = 7,	-- gui
+	dispatch = function(msg,len)
+        local info = msgpack:unpack_raw(msg,len)
+        local f = gui[info[2]]
+		if f == nil then
+			c.post_message(tonumber(info[1]),info[2],{-1,"Unknown gui command " ..  info[2]})
+		else
+			local co = coroutine.create(function()
+                        local t = f(info)
+                        c.post_message(tonumber(info[1]),info[2],t)
+                        return "EXIT", t end)
+			suspend(source, session, co, coroutine.resume(co,info))
+		end
+	end
+}
+
+cell.dispatch {
 	id = 6, -- socket
 	dispatch = function(fd, sz, msg,...)
 		local accepter = sockets_accept[fd]
@@ -338,6 +364,46 @@ cell.dispatch {
 						cell.wakeup(ev)
 					end
 				end
+			elseif rpc[fd]  then
+				
+				if rpc_head[fd] == nil then
+					if bsz >=4 then
+					
+						local head = csocket.pop(sockets[fd], 4)
+						local pos,len=binlib.unpack(">I",head)  
+						local data = csocket.pop(sockets[fd],len)
+						if data then
+							rpc_head[fd]  = nil
+							local pos,rep = binlib.unpack("A"..len,data)
+							local info = msgpack:unpack(rep)
+							local fs = rpc[fd]
+							local f = fs[info[1]]
+							if f then
+								f(fd,info)
+							else
+								error ("UnSupport rpc cmd : " .. info[1])
+							end
+						else
+						    rpc_head[fd]  = len
+						end
+					end
+				else
+					local data = csocket.pop(sockets[fd],rpc_head[fd] )
+					if data then
+						rpc_head[fd]  = nil
+						local pos,rep = binlib.unpack("A"..rpc_head[fd],data)
+						local info = msgpack:unpack(rep,rpc_head[fd])
+						local fs = rpc[fd]
+						local f = fs[info[1]]
+						if f then
+							f(fd,info)
+						else
+							error ("UnSupport rpc cmd : " .. info[1])
+						end
+					end
+				end
+			else
+			 -- donothing
 			end
 		end
 	end
