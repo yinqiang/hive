@@ -312,11 +312,11 @@ cell.dispatch {
         local info = msgpack:unpack_raw(msg,len)
         local f = gui[info[2]]
 		if f == nil then
-			c.post_message(tonumber(info[1]),info[2],{-1,"Unknown gui command " ..  info[2]})
+			c.post_message(tonumber(info[1]),"error",{-1,"Unknown gui command " ..  info[2]})
 		else
 			local co = coroutine.create(function()
                         local t = f(info)
-                        c.post_message(tonumber(info[1]),info[2],t)
+                        --c.post_message(tonumber(info[1]),info[2],t)
                         return "EXIT", t end)
 			suspend(source, session, co, coroutine.resume(co,info))
 		end
