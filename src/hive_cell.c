@@ -261,17 +261,6 @@ lcallback(lua_State *L) {
 
 struct cell *
 cell_new(lua_State *L, const char * mainfile) {
-	//hive gui lib from hive gui
-	lua_rawgetp(L, LUA_REGISTRYINDEX, "hive_gui_lib");
-	if (lua_type(L,-1)==LUA_TFUNCTION) {
-		lua_CFunction hive_gui_lib = lua_tocfunction(L, -1);	// hive_gui_lib
-		luaL_requiref(L, "hive.gui", hive_gui_lib, 0);
-		lua_pop(L,1);
-	}
-	lua_pop(L, 1);
-	/////////////////////////////////////
-	
-	
 	luaL_requiref(L, "cell.c.socket", socket_lib, 0);
 	lua_pop(L,1);
 	luaL_requiref(L, "cell.stable", luaopen_stable_raw, 0); //sraw
@@ -309,7 +298,11 @@ cell_new(lua_State *L, const char * mainfile) {
 
 	int err = luaL_loadfile(L, mainfile);
 	if (err) {
-		printf("%d : %s\n", err, lua_tostring(L,-1));
+		printf("%d : %s\n", err, lua_tostring(L,-1));	
+		char str[1024];
+		sprintf(str,"%d : %s\n", err, lua_tostring(L,-1));
+		hive_log(L,1,str);
+		
 		lua_pop(L,1);
 		goto _error;
 	}
@@ -317,6 +310,9 @@ cell_new(lua_State *L, const char * mainfile) {
 	err = lua_pcall(L, 0, 0, 0);
 	if (err) {
 		printf("new cell (%s) error %d : %s\n", mainfile, err, lua_tostring(L,-1));
+		char str[1024];
+		sprintf(str,"new cell (%s) error %d : %s\n", mainfile, err, lua_tostring(L,-1));
+		hive_log(L,1,str);
 		lua_pop(L,1);
 		goto _error;
 	}

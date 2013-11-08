@@ -3,6 +3,7 @@
 #include "lualib.h"
 #include "hive_cell.h"
 #include "hive_env.h"
+#include "hive_log.h"
 #include "hive_scheduler.h"
 #include "hive_system_lib.h"
 #include "stable.h"
@@ -255,13 +256,21 @@ scheduler_newtask(lua_State *pL) {
 	luaL_openlibs(L);
 	hive_createenv(L);
 #if defined(_GUI) //for gui app,print to file
-	FILE * fp;
-	fp=fopen("print.log","a+");
-	lua_pushlightuserdata(L,fp);
-	hive_setenv(L,"print_log");
+	hive_copyenv(L, pL, "print_log");
+	//hive_copyenv(L, pL, "hive_gui_lib");
 	/* print */
     lua_pushcfunction(L, hive_print);
     lua_setglobal(L, "print");
+	lua_pushstring(pL,"hive_gui_lib");
+	lua_gettable(pL, LUA_REGISTRYINDEX);		
+	if (lua_type(pL,-1)==LUA_TFUNCTION) {
+		lua_CFunction hive_gui_lib = lua_tocfunction(pL, -1);
+		lua_pop(pL,1);
+		luaL_requiref(L, "hive.gui", hive_gui_lib, 0);
+		lua_pop(L,1);
+	} else {
+		lua_pop(pL,1);
+	}
 #endif
 	struct global_queue * mq = hive_copyenv(L, pL, "message_queue");
 	globalmq_inc(mq);
@@ -311,6 +320,14 @@ scheduler_start(lua_State *L) {
 
 	lua_pushvalue(L,-1);
 	hive_setenv(L, "message_queue");
+	
+	#if defined(_GUI) //for gui app,log to file
+	FILE * fp;
+	fp=fopen("hive_gui.log","a+");
+	lua_pushlightuserdata(L,fp);
+	hive_setenv(L,"print_log");
+	#endif
+	
 	//  cell registar ,win handle registar
 	//struct table * cell_registar = lua_newuserdata(L,sizeof(struct table));
 	struct table * cell_registar = stable_create();
@@ -323,10 +340,20 @@ scheduler_start(lua_State *L) {
 	// end
 	lua_State *sL;
 
+	
+	
 	sL = scheduler_newtask(L);
 	luaL_requiref(sL, "cell.system", cell_system_lib, 0);
 	lua_pop(sL,1);
-
+	#if defined(_GUI) //copy hive_gui to system cell
+	lua_pushstring(L,"hive_gui_lib");
+	lua_gettable(L, LUA_REGISTRYINDEX);
+	lua_CFunction hive_gui_lib = lua_tocfunction(L, -1);
+	lua_pop(L,1);
+	lua_pushstring(sL,"hive_gui_lib");
+	lua_pushcfunction(sL, hive_gui_lib);
+	lua_settable(sL, LUA_REGISTRYINDEX);
+	#endif
 	lua_pushstring(sL, main_lua);
 	lua_setglobal(sL, "maincell");
 
