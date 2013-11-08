@@ -217,7 +217,7 @@ lopen(lua_State *L) {
 	ai_hints.ai_family = AF_UNSPEC;
 	ai_hints.ai_socktype = SOCK_DGRAM;
 	ai_hints.ai_protocol = IPPROTO_UDP;
-
+	ai_hints.ai_flags = AI_PASSIVE;
 	status = getaddrinfo( NULL, port, &ai_hints, &ai_list );
 	if ( status != 0 ) {
 		return 0;
