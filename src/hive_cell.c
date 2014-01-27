@@ -1,22 +1,25 @@
 #include "lua.h"
 #include "lauxlib.h"
+#include "hive.h"
 #include "hive_env.h"
 #include "hive_cell.h"
 #include "hive_cell_lib.h"
 #include "hive_seri.h"
 #include "hive_scheduler.h"
 #include "hive_socket_lib.h"
-
+#include "stable.h"
+#include "lua-stable.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
 #include <stdbool.h>
+#include <string.h>
 
 #define DEFAULT_QUEUE 64
-
 struct message {
 	int port;
 	void * buffer;
+	int size;
 };
 
 struct message_queue {
@@ -33,6 +36,7 @@ struct cell {
 	struct message_queue mq;
 	bool quit;
 	bool close;
+        char name[50]; //for regist
 };
 
 struct cell_ud {
@@ -76,11 +80,23 @@ ltostring(lua_State *L) {
 static int
 lrelease(lua_State *L) {
 	struct cell_ud * cud = lua_touserdata(L,1);
+	/*TODO fix delete form cell_registar
+	 hive_getenv(L,"cell_registar");
+	 struct table cell_registar = lua_newuserdata(L,-1);
+	 cell_lock(cud->c);
+	 statble_del_string(cud->c->name);
+	 cell_unlock(cud->c);
+	*/
 	cell_release(cud->c);
 	cud->c = NULL;
 	return 0;
 }
 
+static int release_msgud(lua_State *L) {
+	struct msg_ud * ud = (struct msg_ud *)lua_touserdata(L,1);
+	free(ud->data);
+	return 0;
+}
 void 
 cell_touserdata(lua_State *L, int index, struct cell *c) {
 	lua_rawgetp(L, index, c);
@@ -198,6 +214,7 @@ static int
 lcallback(lua_State *L) {
 	int port = lua_tointeger(L,1);
 	void *msg = lua_touserdata(L,2);
+	int size = lua_tointeger(L,3);
 	int err;
 	lua_settop(L,0);
 	lua_pushvalue(L, lua_upvalueindex(1));	// traceback
@@ -205,7 +222,23 @@ lcallback(lua_State *L) {
 		lua_pushvalue(L, lua_upvalueindex(3));	// dispatcher 3
 		lua_pushinteger(L, port);
 		err = lua_pcall(L, 1, 0, 1);
-	} else {
+	}else if(port == GUI_PORT) { //msg from win32 gui
+		lua_pushvalue(L, lua_upvalueindex(3));	// dispatcher 3
+		lua_pushinteger(L, port);
+		struct msg_ud * ud = (struct msg_ud *)lua_newuserdata(L,sizeof(*ud));// dispatcher port  msg 
+		ud->data =  msg;
+		if (luaL_newmetatable(L, "gui_msg")) { //metatable
+			//lua_pushcfunction(L, ltostring);
+			//lua_setfield(L, -2, "__tostring");
+			lua_pushcfunction(L, release_msgud);
+			lua_setfield(L, -2, "__gc");
+		}
+		lua_setmetatable(L, -2);
+		//lua_pushlightuserdata(L, msg);	
+		lua_pushinteger(L, size);
+		err = lua_pcall(L,3, 0, 1);
+	}
+	else {
 		lua_pushvalue(L, lua_upvalueindex(3));	// traceback dispatcher 
 		lua_pushinteger(L, port);	// traceback dispatcher port
 		lua_pushvalue(L, lua_upvalueindex(2));	// traceback dispatcher port data_unpack
@@ -230,6 +263,12 @@ struct cell *
 cell_new(lua_State *L, const char * mainfile) {
 	luaL_requiref(L, "cell.c.socket", socket_lib, 0);
 	lua_pop(L,1);
+	luaL_requiref(L, "cell.stable", luaopen_stable_raw, 0); //sraw
+	lua_pop(L,1); 
+	luaL_requiref(L, "cell.msgpack", luaopen_cmsgpack, 0); //messagepack
+	lua_pop(L,1);
+	luaL_requiref(L, "cell.binlib", luaopen_binlib_c, 0); //messagepack
+	lua_pop(L,1);
 	hive_getenv(L, "cell_map");
 	int cell_map = lua_absindex(L,-1);	// cell_map
 	luaL_requiref(L, "cell.c", cell_lib, 0);	// cell_map cell_lib
@@ -238,7 +277,13 @@ cell_new(lua_State *L, const char * mainfile) {
 	cell_touserdata(L, cell_map, c);	// cell_map cell_lib cell_ud
 
 	lua_setfield(L, -2, "self");	// cell_map cell_lib
-
+	// win_handle_registar
+	hive_getenv(L,"win_handle_registar");
+	//struct table  * handle = lua_touserdata(L,-1);
+	//lua_pop(L, 1);	
+	//lua_pushlightuserdata(L,handle);
+	lua_setfield(L,-2,"win_handle");
+	//
 	hive_getenv(L, "system_pointer");
 	struct cell * sys = lua_touserdata(L, -1);	// cell_map cell_lib system_cell
 	lua_pop(L, 1);	
@@ -253,7 +298,11 @@ cell_new(lua_State *L, const char * mainfile) {
 
 	int err = luaL_loadfile(L, mainfile);
 	if (err) {
-		printf("%d : %s\n", err, lua_tostring(L,-1));
+		printf("%d : %s\n", err, lua_tostring(L,-1));	
+		char str[1024];
+		sprintf(str,"%d : %s\n", err, lua_tostring(L,-1));
+		hive_log(L,1,str);
+		
 		lua_pop(L,1);
 		goto _error;
 	}
@@ -261,6 +310,9 @@ cell_new(lua_State *L, const char * mainfile) {
 	err = lua_pcall(L, 0, 0, 0);
 	if (err) {
 		printf("new cell (%s) error %d : %s\n", mainfile, err, lua_tostring(L,-1));
+		char str[1024];
+		sprintf(str,"new cell (%s) error %d : %s\n", mainfile, err, lua_tostring(L,-1));
+		hive_log(L,1,str);
 		lua_pop(L,1);
 		goto _error;
 	}
@@ -295,7 +347,8 @@ _dispatch(lua_State *L, struct message *m) {
 	lua_pushvalue(L, 1);	// dup callback
 	lua_pushinteger(L, m->port);
 	lua_pushlightuserdata(L, m->buffer);
-	lua_call(L, 2, 0);
+	lua_pushinteger(L, m->size);
+	lua_call(L, 3, 0);
 }
 
 static void
@@ -345,14 +398,18 @@ cell_dispatch_message(struct cell *c) {
 }
 
 int 
-cell_send(struct cell *c, int port, void *msg) {
+cell_send(struct cell *c, int port, void *msg,int size) {
 	cell_lock(c);
 	if (c->quit || c->close) {
 		cell_unlock(c);
 		return 1;
 	}
-	struct message m = { port, msg };
+	struct message m = { port, msg ,size};
 	mq_push(&c->mq, &m);
 	cell_unlock(c);
 	return 0;
+}
+void 
+cell_setname(struct cell *c,const char * name) {
+  strcpy(c->name,name);
 }

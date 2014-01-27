@@ -25,6 +25,8 @@ struct write_buffer {
 	char *ptr;
 	size_t sz;
 	void *buffer;
+	char peer_ip[20]; //for udp
+	int peer_port;   //for udp
 };
 
 struct socket {
@@ -34,6 +36,7 @@ struct socket {
 	short listen;
 	struct write_buffer * head;
 	struct write_buffer * tail;
+	int stype; //socket type
 };
 
 struct socket_pool {
@@ -120,7 +123,7 @@ expand_pool(struct socket_pool *p) {
 }
 
 static int
-new_socket(struct socket_pool *p, int sock) {
+new_socket(struct socket_pool *p, int sock,int stype) {
 	int i;
 	if (p->count >= p->cap) {
 		expand_pool(p);
@@ -140,6 +143,7 @@ new_socket(struct socket_pool *p, int sock) {
 			setsockopt(sock, SOL_SOCKET, SO_KEEPALIVE, (void *)&keepalive , sizeof(keepalive));
 			s->fd = sock;
 			s->id = id;
+			s->stype = stype;
 			p->count++;
 			p->id = id + 1;
 			if (p->id > MAX_ID) {
@@ -196,11 +200,56 @@ lconnect(lua_State *L) {
 		return 0;
 	}
 
-	int fd = new_socket(pool, sock);
+	int fd = new_socket(pool, sock,SOCK_STREAM);
 	lua_pushinteger(L,fd);
 	return 1;
 }
 
+static int
+lopen(lua_State *L) {
+	int status;
+	struct addrinfo ai_hints;
+	struct addrinfo *ai_list = NULL;
+	struct addrinfo *ai_ptr = NULL;
+
+	struct socket_pool * pool = get_sp(L);
+	const char * port = luaL_checkstring(L,1);
+
+	memset( &ai_hints, 0, sizeof( ai_hints ) );
+	ai_hints.ai_family = AF_UNSPEC;
+	ai_hints.ai_socktype = SOCK_DGRAM;
+	ai_hints.ai_protocol = IPPROTO_UDP;
+	ai_hints.ai_flags = AI_PASSIVE;
+	status = getaddrinfo( NULL, port, &ai_hints, &ai_list );
+	if ( status != 0 ) {
+		return 0;
+	}
+	int sock= -1;
+	for     ( ai_ptr = ai_list;	ai_ptr != NULL;	ai_ptr = ai_ptr->ai_next ) {
+		sock = socket( ai_ptr->ai_family, ai_ptr->ai_socktype, ai_ptr->ai_protocol );
+		if ( sock < 0 ) {
+			continue;
+		}
+		status = bind( sock,	ai_ptr->ai_addr, ai_ptr->ai_addrlen	);
+		if ( status	!= 0 ) {
+			close(sock);
+			sock = -1;
+			continue;
+		}
+		break;
+	}
+
+	freeaddrinfo( ai_list );
+
+	if (sock < 0) {
+		return 0;
+	}
+	int fd = new_socket(pool, sock,SOCK_DGRAM);
+	lua_pushinteger(L,fd);
+	int reuse = 1;
+	setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *)&reuse, sizeof(int));
+	return 1;
+}
 static void
 force_close(struct socket *s, struct socket_pool *p) {
 	struct write_buffer *wb = s->head;
@@ -274,11 +323,19 @@ remove_after_n(lua_State *L, int n) {
 static int
 push_result(lua_State *L, int idx, struct socket *s, struct socket_pool *p) {
 	int ret = 0;
+	struct sockaddr_in addr; 
+	memset(&addr, 0, sizeof(struct sockaddr_in)); 
+	int addr_len = sizeof(struct sockaddr_in); 
 	for (;;) {
 		char * buffer = malloc(READ_BUFFER);
 		int r = 0;
 		for (;;) {
-			r = recv(s->fd, buffer, READ_BUFFER,0);
+			if(s->stype == SOCK_STREAM){
+				r = recv(s->fd, buffer, READ_BUFFER,0);
+			} else {
+				r = recvfrom(s->fd,buffer,READ_BUFFER,0,(struct sockaddr *)&addr ,&addr_len);
+			}
+			
 			if (r == -1) {
 				switch(errno) {
 				case EAGAIN:
@@ -310,6 +367,12 @@ push_result(lua_State *L, int idx, struct socket *s, struct socket_pool *p) {
 			lua_rawseti(L, -2, 2);
 			lua_pushlightuserdata(L, buffer);
 			lua_rawseti(L, -2, 3);
+			if(s->stype == SOCK_DGRAM){
+				lua_pushlstring(L,inet_ntoa(addr.sin_addr),strlen(inet_ntoa(addr.sin_addr)));
+				lua_rawseti(L, -2, 4);
+				lua_pushinteger(L, (unsigned)ntohs(addr.sin_port));
+				lua_rawseti(L, -2, 5);
+			}
 			lua_pop(L,1);
 		}
 		if (r < READ_BUFFER)
@@ -327,7 +390,7 @@ accept_result(lua_State *L, int idx, struct socket *s, struct socket_pool *p) {
 		if (client_fd < 0) {
 			return ret;
 		}
-		int id = new_socket(p, client_fd);
+		int id = new_socket(p, client_fd,SOCK_STREAM);
 		if (id < 0) {
 			return ret;
 		}
@@ -350,7 +413,17 @@ sendout(struct socket_pool *p, struct socket *s) {
 	while (s->head) {
 		struct write_buffer * tmp = s->head;
 		for (;;) {
-			int sz = send(s->fd, tmp->ptr, tmp->sz,0);
+			int sz;
+			if (s->stype == SOCK_DGRAM) {
+				struct sockaddr_in my_addr;
+				memset(&my_addr, 0, sizeof(struct sockaddr_in));
+				my_addr.sin_family = AF_INET;
+				my_addr.sin_port = htons(tmp->peer_port);
+				my_addr.sin_addr.s_addr=inet_addr(tmp->peer_ip);
+				sz = sendto(s->fd,tmp->ptr, sz,0,(struct sockaddr *) &my_addr, sizeof(struct sockaddr));
+			} else {
+				 sz = send(s->fd, tmp->ptr, tmp->sz,0);
+			}
 			if (sz < 0) {
 				switch(errno) {
 				case EINTR:
@@ -425,7 +498,9 @@ lsend(lua_State *L) {
 	int id = luaL_checkinteger(L,1);
 	int sz = luaL_checkinteger(L,2);
 	void * msg = lua_touserdata(L,3);
-
+	const char * peer_ip;
+	size_t size;
+	int peer_port;
 	struct socket * s = p->s[id % p->cap];
 	if (id != s->id) {
 		free(msg);
@@ -435,6 +510,11 @@ lsend(lua_State *L) {
 		free(msg);
 //		return luaL_error(L,"Write to closed socket %d", id);
 		return 0;
+	}
+	if (s->stype == SOCK_DGRAM) {
+		peer_ip = luaL_checkstring(L,4);
+		size=strlen(peer_ip);
+		peer_port = luaL_checkinteger(L,5);
 	}
 	if (s->head) {
 		struct write_buffer * buf = malloc(sizeof(*buf));
@@ -446,13 +526,27 @@ lsend(lua_State *L) {
 		buf->next = s->tail->next;
 		s->tail->next = buf;
 		s->tail = buf;
+		if (s->stype == SOCK_DGRAM){
+			memcpy(buf->peer_ip,peer_ip,size);
+			buf->peer_port = peer_port;
+		}
 		return 0;
 	}
 
 	char * ptr = msg;
 
 	for (;;) {
-		int wt = send(s->fd, ptr, sz,0);
+		int wt;	
+		if (s->stype == SOCK_DGRAM) {
+			struct sockaddr_in my_addr;
+			memset(&my_addr, 0, sizeof(struct sockaddr_in));
+			my_addr.sin_family = AF_INET;
+			my_addr.sin_port = htons(peer_port);
+			my_addr.sin_addr.s_addr=inet_addr(peer_ip);
+			wt = sendto(s->fd,ptr, sz,0,(struct sockaddr *) &my_addr, sizeof(struct sockaddr));
+		} else {
+			wt = send(s->fd, ptr, sz,0);
+		}
 		if (wt < 0) {
 			switch(errno) {
 			case EINTR:
@@ -474,6 +568,10 @@ lsend(lua_State *L) {
 	buf->ptr = ptr;
 	buf->sz = sz;
 	buf->buffer = msg;
+	if (s->stype == SOCK_DGRAM) {
+		memcpy(buf->peer_ip,peer_ip,size);
+		buf->peer_port = peer_port;
+	}
 	s->head = s->tail = buf;
 
 	sp_write(p->fd, s->fd, s, true);
@@ -726,7 +824,7 @@ llisten(lua_State *L) {
 		addr=inet_addr(binding);
 	}
 	int listen_fd = socket(AF_INET, SOCK_STREAM, 0);
-	int id = new_socket(p, listen_fd);
+	int id = new_socket(p, listen_fd,SOCK_STREAM);
 	if (id < 0) {
 		return luaL_error(L, "Create socket %s failed", name);
 	}
@@ -769,6 +867,7 @@ socket_lib(lua_State *L) {
 		{ "pop", lpop },
 		{ "readline", lreadline },
 		{ "listen", llisten },
+		{ "open",lopen},
 		{ NULL, NULL },
 	};
 	luaL_newlibtable(L,l);
