@@ -7,6 +7,7 @@
 #include "hive_seri.h"
 #include "hive_scheduler.h"
 #include "hive_socket_lib.h"
+#include "hive_log.h"
 #include "stable.h"
 #include "lua-stable.h"
 #include <stdio.h>

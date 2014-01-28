@@ -1,3 +1,4 @@
+#include <stdlib.h>
 #include "lua.h"
 #include "lauxlib.h"
 #include "hive_scheduler.h"

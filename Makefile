@@ -15,7 +15,12 @@ src/hive_scheduler.c \
 src/hive_env.c \
 src/hive_cell_lib.c \
 src/hive_system_lib.c \
-src/hive_socket_lib.c
+src/hive_socket_lib.c \
+src/lua_cmsgpack.c \
+src/lpack.c \
+src/stable.c \
+src/lua-stable.c \
+src/hive_log.c
 
 none:
 	@echo "Please do 'make PLATFORM' where PLATFORM is one of these:"
